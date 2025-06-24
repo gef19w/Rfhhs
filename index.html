@@ -1,52 +1,70 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Paris 3D via Cesium</title>
-  <script src="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Cesium.js"></script>
-  <link href="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <title>3D Paris Map with Cesium</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
   <style>
-    html, body, #cesiumContainer { height: 100%; margin: 0; padding: 0; }
-    #status {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.7);
-      color: white;
-      padding: 10px 20px;
-      border-radius: 10px;
-      z-index: 1000;
-      font-family: sans-serif;
+    html, body, #cesiumContainer {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
     }
   </style>
 </head>
 <body>
-  <div id="status">🔄 جاري تحميل الخريطة ثلاثية الأبعاد...</div>
   <div id="cesiumContainer"></div>
-
   <script>
-    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxNWQ5ZWYxMi0yNTViLTRhZmItYTg1Yi0wODVhYjJjZTY0ZGYiLCJpZCI6MzEzMTE4LCJpYXQiOjE3NTA3Njc5NTJ9.fIpEryemLcjeyKne7RDuei4AzyjhWxDmfLS1MEhTS6c';
+    // تهيئة Cesium Viewer
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+      terrainProvider: Cesium.createWorldTerrain(),
+      imageryProvider: new Cesium.IonImageryProvider({ assetId: 3845 }), // Bing Maps
+      baseLayerPicker: false,
+      shouldAnimate: true
+    });
 
-    let statusDiv = document.getElementById('status');
-    try {
-      const viewer = new Cesium.Viewer('cesiumContainer', {
-        terrainProvider: Cesium.createWorldTerrain(),
-        imageryProvider: new Cesium.IonImageryProvider({ assetId: 2 })
-      });
+    // التكبير نحو باريس
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566, 2000), // خط الطول، خط العرض، الارتفاع
+      orientation: {
+        heading: Cesium.Math.toRadians(0), // اتجاه الكاميرا
+        pitch: Cesium.Math.toRadians(-30), // زاوية الميل
+      }
+    });
 
-      viewer.scene.camera.moveEnd.addEventListener(() => {
-        statusDiv.innerHTML = "✅ تم تحميل الخريطة!";
-        setTimeout(() => statusDiv.style.display = "none", 3000);
-      });
+    // إضافة علامة على باريس
+    viewer.entities.add({
+      name: 'Paris',
+      position: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566),
+      point: {
+        pixelSize: 20,
+        color: Cesium.Color.RED
+      },
+      label: {
+        text: 'Paris',
+        font: '14pt sans-serif',
+        fillColor: Cesium.Color.WHITE,
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 2,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        verticalOrigin: Cesium.VerticalOrigin.BOTTOM
+      }
+    });
 
-      viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566, 1000),
-      });
-    } catch (error) {
-      statusDiv.innerHTML = "❌ حدث خطأ في تحميل الخريطة: " + error.message;
-    }
+    // معالجة الأخطاء
+    viewer.scene.globe.tileLoadProgressEvent.addEventListener(function(tilesLoaded) {
+      if (tilesLoaded === 0) {
+        console.log("تم تحميل جميع البلاطات بنجاح!");
+      }
+    });
+
+    viewer.scene.errorEvent.addEventListener(function(error) {
+      console.error("حدث خطأ في المشهد:", error);
+      alert("حدث خطأ أثناء تحميل الخريطة. يُرجى التحقق من اتصال الإنترنت أو تحديث الصفحة.");
+    });
   </script>
 </body>
 </html>
