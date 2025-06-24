@@ -1,0 +1,52 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Paris 3D via Cesium</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <style>
+    html, body, #cesiumContainer { height: 100%; margin: 0; padding: 0; }
+    #status {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 10px;
+      z-index: 1000;
+      font-family: sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">🔄 جاري تحميل الخريطة ثلاثية الأبعاد...</div>
+  <div id="cesiumContainer"></div>
+
+  <script>
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxNWQ5ZWYxMi0yNTViLTRhZmItYTg1Yi0wODVhYjJjZTY0ZGYiLCJpZCI6MzEzMTE4LCJpYXQiOjE3NTA3Njc5NTJ9.fIpEryemLcjeyKne7RDuei4AzyjhWxDmfLS1MEhTS6c';
+
+    let statusDiv = document.getElementById('status');
+    try {
+      const viewer = new Cesium.Viewer('cesiumContainer', {
+        terrainProvider: Cesium.createWorldTerrain(),
+        imageryProvider: new Cesium.IonImageryProvider({ assetId: 2 })
+      });
+
+      viewer.scene.camera.moveEnd.addEventListener(() => {
+        statusDiv.innerHTML = "✅ تم تحميل الخريطة!";
+        setTimeout(() => statusDiv.style.display = "none", 3000);
+      });
+
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566, 1000),
+      });
+    } catch (error) {
+      statusDiv.innerHTML = "❌ حدث خطأ في تحميل الخريطة: " + error.message;
+    }
+  </script>
+</body>
+</html>
