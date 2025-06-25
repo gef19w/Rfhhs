@@ -1,54 +1,53 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <title>خريطة باريس ثلاثية الأبعاد</title>
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Cesium.js"></script>
   <link href="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
   <style>
-    /* التصميم المعدل */
     body {
       margin: 0;
       padding: 0;
-      font-family: Arial, sans-serif;
+      font-family: 'Arial Arabic', Tahoma, sans-serif;
+      background: #f0f0f0;
     }
     #cesiumContainer {
       width: 100%;
       height: 100vh;
-      position: relative;
     }
     #loadingScreen {
-      position: absolute;
+      position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0,0,0,0.8);
-      color: white;
+      background: #1a1a1a;
+      color: #fff;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      z-index: 999;
+      z-index: 1000;
     }
     #errorScreen {
       display: none;
-      position: absolute;
+      position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0,0,0,0.9);
+      background: #1a1a1a;
       color: #ff6b6b;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      z-index: 1000;
-      padding: 20px;
+      z-index: 1001;
       text-align: center;
+      padding: 20px;
     }
     .spinner {
-      border: 5px solid rgba(255,255,255,0.3);
+      border: 5px solid rgba(255, 255, 255, 0.3);
       border-radius: 50%;
       border-top: 5px solid #4CAF50;
       width: 50px;
@@ -60,15 +59,24 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-    button.retry-btn {
+    .retry-btn {
       background: #4CAF50;
       color: white;
       border: none;
-      padding: 10px 20px;
+      padding: 12px 24px;
       margin-top: 20px;
       cursor: pointer;
       border-radius: 5px;
       font-size: 16px;
+      transition: background 0.3s;
+    }
+    .retry-btn:hover {
+      background: #45a049;
+    }
+    .progress-text {
+      margin-top: 15px;
+      color: #aaa;
+      font-size: 14px;
     }
   </style>
 </head>
@@ -77,144 +85,189 @@
   
   <div id="loadingScreen">
     <div class="spinner"></div>
-    <h2>جاري تحميل الخريطة ثلاثية الأبعاد</h2>
-    <p id="loadingProgress">جارٍ تهيئة النظام...</p>
+    <h2>جاري تحميل الخريطة...</h2>
+    <p class="progress-text" id="loadingProgress">المرحلة الأولى: تحميل المكتبات الأساسية</p>
   </div>
   
   <div id="errorScreen">
-    <h2>⚠️ حدث خطأ في التحميل</h2>
-    <p id="errorDetails">تفاصيل الخطأ ستظهر هنا</p>
-    <button class="retry-btn" onclick="window.location.reload()">إعادة المحاولة</button>
-    <p style="margin-top: 20px; font-size: 12px; color: #aaa;">
-      إذا استمرت المشكلة، يرجى التأكد من اتصال الإنترنت لديك
-    </p>
+    <div style="max-width: 500px;">
+      <h2 style="color: #ff6b6b;">⚠️ تعذر تحميل الخريطة</h2>
+      <p id="errorDetails" style="margin: 15px 0;">حدث خطأ غير متوقع أثناء التحميل</p>
+      <button class="retry-btn" onclick="window.location.reload()">إعادة المحاولة</button>
+      <p style="margin-top: 20px; color: #888; font-size: 14px;">
+        إذا استمرت المشكلة، يرجى:<br>
+        1. التحقق من اتصال الإنترنت<br>
+        2. تحديث الصفحة (F5)<br>
+        3. المحاولة لاحقًا
+      </p>
+    </div>
   </div>
 
   <script>
-    // ========== الإعدادات الأساسية ==========
+    // ===== الإعدادات الرئيسية =====
     const loadingScreen = document.getElementById('loadingScreen');
     const loadingProgress = document.getElementById('loadingProgress');
     const errorScreen = document.getElementById('errorScreen');
     const errorDetails = document.getElementById('errorDetails');
     
-    // ========== دالة معالجة الأخطاء ==========
-    function handleError(error, customMessage = null) {
-      console.error('Cesium Error:', error);
-      
-      let errorMsg = customMessage || 'حدث خطأ غير متوقع';
-      if (error instanceof Cesium.DeveloperError) {
-        errorMsg = "مشكلة في تكوين Cesium: " + error.message;
-      } else if (error.message.includes('ION')) {
-        errorMsg = "مشكلة في خدمة الخرائط السحابية (Cesium Ion)";
-      } else if (error.message.includes('Bing')) {
-        errorMsg = "لا يمكن تحميل صور الخريطة";
-      }
-      
-      errorDetails.textContent = errorMsg;
+    // ===== دالة معالجة الأخطاء =====
+    function showError(message, technicalDetails = '') {
+      console.error('Error:', technicalDetails || message);
+      errorDetails.innerHTML = `${message}<br><small style="color:#aaa">${technicalDetails}</small>`;
       loadingScreen.style.display = 'none';
       errorScreen.style.display = 'flex';
+      
+      // إرسال تقرير الخطأ تلقائياً (اختياري)
+      try {
+        if (navigator.onLine) {
+          fetch('https://api.example.com/error-report', {
+            method: 'POST',
+            body: JSON.stringify({
+              error: message,
+              details: technicalDetails,
+              page: 'Paris 3D Map'
+            })
+          });
+        }
+      } catch (e) {}
     }
 
-    // ========== دالة تهيئة الخريطة ==========
-    async function initializeMap() {
+    // ===== دالة تهيئة الخريطة =====
+    async function initMap() {
       try {
         // 1. التحقق من اتصال الإنترنت
         if (!navigator.onLine) {
           throw new Error("لا يوجد اتصال بالإنترنت");
         }
+        loadingProgress.textContent = "المرحلة 1: التحقق من الاتصال...";
 
-        // 2. تحميل Cesium الأساسي
-        loadingProgress.textContent = "جارٍ تحميل المكتبات...";
+        // 2. التحقق من تحميل مكتبة Cesium
         if (typeof Cesium === 'undefined') {
-          throw new Error("لم يتم تحميل مكتبة Cesium");
+          throw new Error("لم يتم تحميل مكتبة CesiumJS");
         }
+        loadingProgress.textContent = "المرحلة 2: تحميل المكتبات...";
 
-        // 3. تهيئة المشهد مع إعدادات مخففة
-        loadingProgress.textContent = "جارٍ تهيئة الخريطة...";
-        const viewer = new Cesium.Viewer('cesiumContainer', {
-          terrainProvider: await Cesium.createWorldTerrainAsync({
-            requestWaterMask: false,
-            requestVertexNormals: false
-          }).catch(e => {
-            console.warn("Using fallback terrain");
-            return new Cesium.EllipsoidTerrainProvider();
-          }),
-          
-          imageryProvider: new Cesium.IonImageryProvider({ assetId: 3845 })
-            .catch(() => new Cesium.TileMapServiceImageryProvider({
+        // 3. استخدام خريطة بديلة إذا فشل التحميل الرئيسي
+        const terrainProvider = await Cesium.createWorldTerrainAsync({
+          requestWaterMask: false,
+          requestVertexNormals: false
+        }).catch(e => {
+          console.warn("Using fallback terrain");
+          return new Cesium.EllipsoidTerrainProvider();
+        });
+
+        loadingProgress.textContent = "المرحلة 3: تحميل التضاريس...";
+
+        const imageryProvider = await new Promise((resolve) => {
+          const bing = new Cesium.IonImageryProvider({ assetId: 3845 });
+          bing.readyPromise.then(resolve).catch(() => {
+            console.warn("Using fallback imagery");
+            resolve(new Cesium.TileMapServiceImageryProvider({
               url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
-            })),
-          
-          baseLayerPicker: false,
-          skyAtmosphere: false,
-          skyBox: false,
-          sceneMode: Cesium.SceneMode.SCENE3D
-        });
-
-        // 4. إظهار تقدم التحميل
-        viewer.scene.globe.tileLoadProgressEvent.addEventListener((remaining) => {
-          loadingProgress.textContent = `جارٍ تحميل البيانات... (${remaining} عنصر باقي)`;
-        });
-
-        // 5. الانتظار حتى يكتمل التحميل
-        await new Promise((resolve) => {
-          viewer.scene.globe.tileLoadProgressEvent.addEventListener((remaining) => {
-            if (remaining === 0) resolve();
+            }));
           });
         });
 
-        // 6. التكبير نحو باريس
-        loadingProgress.textContent = "جارٍ تهيئة المشهد...";
-        viewer.camera.flyTo({
+        loadingProgress.textContent = "المرحلة 4: تهيئة الخريطة...";
+
+        // 4. إنشاء المشهد
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+          terrainProvider: terrainProvider,
+          imageryProvider: imageryProvider,
+          baseLayerPicker: false,
+          skyAtmosphere: false,
+          skyBox: false,
+          sceneMode: Cesium.SceneMode.SCENE3D,
+          timeline: false,
+          animation: false,
+          shouldAnimate: true
+        });
+
+        // 5. تتبع تقدم التحميل
+        viewer.scene.globe.tileLoadProgressEvent.addEventListener((remaining) => {
+          loadingProgress.textContent = `المرحلة 5: جارٍ تحميل البيانات (${remaining} عنصر باقي)...`;
+        });
+
+        // 6. الانتظار حتى اكتمال التحميل
+        await new Promise((resolve) => {
+          const checkLoad = setInterval(() => {
+            if (viewer.scene.globe.tilesLoaded) {
+              clearInterval(checkLoad);
+              resolve();
+            }
+          }, 500);
+        });
+
+        // 7. التكبير نحو باريس
+        loadingProgress.textContent = "المرحلة 6: تهيئة المشهد النهائي...";
+        await viewer.camera.flyTo({
           destination: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566, 2000),
           orientation: {
             heading: Cesium.Math.toRadians(0),
             pitch: Cesium.Math.toRadians(-30)
           },
-          complete: () => {
-            // إظهار العناصر الجمالية بعد التحميل
-            viewer.skyAtmosphere = true;
-            viewer.skyBox = true;
-            loadingScreen.style.display = 'none';
-          }
+          maximumHeight: 5000,
+          easingFunction: Cesium.EasingFunction.LINEAR_NONE
         });
 
-        // 7. إضافة علامة باريس
+        // 8. إضافة علامة باريس
         viewer.entities.add({
           name: "Paris",
           position: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566),
           point: {
-            pixelSize: 15,
-            color: Cesium.Color.RED
+            pixelSize: 20,
+            color: Cesium.Color.RED.withAlpha(0.8),
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 2
           },
           label: {
-            text: "باريس",
-            font: "14pt sans-serif",
+            text: "باريس | Paris",
+            font: "16px 'Arial Arabic', sans-serif",
             style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-            outlineWidth: 2,
+            outlineWidth: 4,
             verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
             fillColor: Cesium.Color.WHITE,
-            outlineColor: Cesium.Color.BLACK
+            outlineColor: Cesium.Color.BLACK,
+            pixelOffset: new Cesium.Cartesian2(0, -30)
           }
         });
 
+        // 9. إظهار العناصر الجمالية بعد التحميل
+        viewer.skyAtmosphere = true;
+        viewer.skyBox = true;
+        loadingScreen.style.opacity = '0';
+        setTimeout(() => {
+          loadingScreen.style.display = 'none';
+        }, 500);
+
       } catch (error) {
-        handleError(error);
+        showError(
+          "تعذر تحميل الخريطة ثلاثية الأبعاد", 
+          error.message.includes('Script error') ? 
+          "حدث خطأ في تحميل مكتبة Cesium" : 
+          error.message
+        );
       }
     }
 
-    // ========== بدء التحميل عند اكتمال الصفحة ==========
+    // ===== بدء التحميل عند اكتمال الصفحة =====
     document.addEventListener('DOMContentLoaded', () => {
-      // تأخير البدء قليلاً لضمان تحميل جميع الموارد
-      setTimeout(initializeMap, 500);
+      setTimeout(initMap, 100); // تأخير بسيط لضمان استقرار الصفحة
     });
 
-    // ========== إعادة المحاولة عند استعادة الاتصال ==========
+    // ===== إعادة المحاولة عند استعادة الاتصال =====
     window.addEventListener('online', () => {
       if (errorScreen.style.display === 'flex') {
         window.location.reload();
       }
     });
+
+    // ===== زر إعادة المحاولة اليدوي =====
+    document.querySelector('.retry-btn').addEventListener('click', () => {
+      errorScreen.style.display = 'none';
+      loadingScreen.style.display = 'flex';
+      initMap();
+    });
   </script>
 </body>
-  </html>
+</html>
