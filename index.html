@@ -13,57 +13,169 @@
       padding: 0;
       overflow: hidden;
     }
+    #loadingOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      font-family: Arial, sans-serif;
+    }
+    #errorOverlay {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      color: red;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      font-family: Arial, sans-serif;
+    }
+    .spinner {
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #3498db;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
   <div id="cesiumContainer"></div>
+  
+  <!-- شاشة التحميل -->
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+    <h2>جارٍ تحميل الخريطة...</h2>
+    <p>شكرًا لصبرك. قد يستغرق هذا بضع دقائق حسب سرعة اتصالك.</p>
+  </div>
+  
+  <!-- شاشة الخطأ -->
+  <div id="errorOverlay">
+    <h2>⚠️ حدث خطأ!</h2>
+    <p id="errorMessage">تعذر تحميل الخريطة. يُرجى التحقق من اتصال الإنترنت والمحاولة لاحقًا.</p>
+    <button onclick="window.location.reload()">حاول مرة أخرى</button>
+  </div>
+
   <script>
-    // تهيئة Cesium Viewer
-    const viewer = new Cesium.Viewer('cesiumContainer', {
-      terrainProvider: Cesium.createWorldTerrain(),
-      imageryProvider: new Cesium.IonImageryProvider({ assetId: 3845 }), // Bing Maps
-      baseLayerPicker: false,
-      shouldAnimate: true
-    });
+    // عناصر واجهة المستخدم
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const errorOverlay = document.getElementById('errorOverlay');
+    const errorMessage = document.getElementById('errorMessage');
 
-    // التكبير نحو باريس
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566, 2000), // خط الطول، خط العرض، الارتفاع
-      orientation: {
-        heading: Cesium.Math.toRadians(0), // اتجاه الكاميرا
-        pitch: Cesium.Math.toRadians(-30), // زاوية الميل
+    // دالة لعرض الخطأ
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorOverlay.style.display = 'flex';
+      loadingOverlay.style.display = 'none';
+    }
+
+    // التحقق من اتصال الإنترنت
+    if (!navigator.onLine) {
+      showError("لا يوجد اتصال بالإنترنت. يُرجى الاتصال بالشبكة وتحديث الصفحة.");
+    } else {
+      // تهيئة Cesium بعد تأكد الاتصال
+      initializeCesium();
+    }
+
+    async function initializeCesium() {
+      try {
+        // 1. تحميل الموارد الأساسية أولًا
+        loadingOverlay.querySelector('p').textContent = "جارٍ تحميل المكتبات الأساسية...";
+        
+        // 2. تهيئة المشهد
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+          terrainProvider: await Cesium.createWorldTerrainAsync(),
+          imageryProvider: new Cesium.IonImageryProvider({ assetId: 3845 }), // Bing Maps
+          baseLayerPicker: false,
+          shouldAnimate: true,
+          // إيقاف العناصر غير الضرورية لتسريع التحميل
+          skyAtmosphere: false,
+          skyBox: false,
+          shadows: false
+        });
+
+        // 3. إظهار رسالة تحميل التضاريس
+        loadingOverlay.querySelector('p').textContent = "جارٍ تحميل التضاريس والصور...";
+
+        // 4. الانتظار حتى يكتمل تحميل البلاطات
+        await new Promise((resolve) => {
+          viewer.scene.globe.tileLoadProgressEvent.addEventListener((tilesLoaded) => {
+            if (tilesLoaded === 0) {
+              resolve();
+            }
+          });
+        });
+
+        // 5. التكبير نحو باريس
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566, 2000),
+          orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-30),
+          },
+          complete: () => {
+            // إخفاء شاشة التحميل بعد اكتمال كل شيء
+            loadingOverlay.style.display = 'none';
+            
+            // إعادة تفعيل العناصر الجمالية
+            viewer.skyAtmosphere = true;
+            viewer.skyBox = true;
+          }
+        });
+
+        // 6. إضافة علامة على باريس
+        viewer.entities.add({
+          name: 'Paris',
+          position: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566),
+          point: {
+            pixelSize: 20,
+            color: Cesium.Color.RED
+          },
+          label: {
+            text: 'Paris',
+            font: '14pt sans-serif',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM
+          }
+        });
+
+        // 7. معالجة أخطاء التحميل اللاحقة
+        viewer.scene.errorEvent.addEventListener((error) => {
+          showError(`خطأ فني: ${error.toString()}`);
+        });
+
+      } catch (error) {
+        showError(`فشل التحميل: ${error.message}`);
       }
-    });
+    }
 
-    // إضافة علامة على باريس
-    viewer.entities.add({
-      name: 'Paris',
-      position: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566),
-      point: {
-        pixelSize: 20,
-        color: Cesium.Color.RED
-      },
-      label: {
-        text: 'Paris',
-        font: '14pt sans-serif',
-        fillColor: Cesium.Color.WHITE,
-        outlineColor: Cesium.Color.BLACK,
-        outlineWidth: 2,
-        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-        verticalOrigin: Cesium.VerticalOrigin.BOTTOM
+    // إعادة المحاولة عند استعادة الاتصال
+    window.addEventListener('online', () => {
+      if (errorOverlay.style.display === 'flex') {
+        window.location.reload();
       }
-    });
-
-    // معالجة الأخطاء
-    viewer.scene.globe.tileLoadProgressEvent.addEventListener(function(tilesLoaded) {
-      if (tilesLoaded === 0) {
-        console.log("تم تحميل جميع البلاطات بنجاح!");
-      }
-    });
-
-    viewer.scene.errorEvent.addEventListener(function(error) {
-      console.error("حدث خطأ في المشهد:", error);
-      alert("حدث خطأ أثناء تحميل الخريطة. يُرجى التحقق من اتصال الإنترنت أو تحديث الصفحة.");
     });
   </script>
 </body>
