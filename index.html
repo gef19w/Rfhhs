@@ -1,273 +1,87 @@
+
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <title>خريطة باريس ثلاثية الأبعاد</title>
-  <script src="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Cesium.js"></script>
-  <link href="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <script src="https://unpkg.com/cesium@latest/Build/Cesium/Cesium.js"></script>
+  <link href="https://unpkg.com/cesium@latest/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: 'Arial Arabic', Tahoma, sans-serif;
-      background: #f0f0f0;
+    body { margin: 0; padding: 0; font-family: 'Arial Arabic', Tahoma, sans-serif; background: #f0f0f0; }
+    #cesiumContainer { width: 100%; height: 100vh; }
+    #loadingScreen, #errorScreen {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 1000; padding: 20px; text-align: center;
     }
-    #cesiumContainer {
-      width: 100%;
-      height: 100vh;
-    }
-    #loadingScreen {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: #1a1a1a;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-    #errorScreen {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: #1a1a1a;
-      color: #ff6b6b;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 1001;
-      text-align: center;
-      padding: 20px;
-    }
+    #loadingScreen { background: #1a1a1a; color: #fff; }
+    #errorScreen { background: #1a1a1a; color: #ff6b6b; display: none; }
     .spinner {
-      border: 5px solid rgba(255, 255, 255, 0.3);
-      border-radius: 50%;
-      border-top: 5px solid #4CAF50;
-      width: 50px;
-      height: 50px;
-      animation: spin 1s linear infinite;
-      margin-bottom: 20px;
+      border: 5px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 5px solid #4CAF50;
+      width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px;
     }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .retry-btn {
-      background: #4CAF50;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      margin-top: 20px;
-      cursor: pointer;
-      border-radius: 5px;
-      font-size: 16px;
-      transition: background 0.3s;
-    }
-    .retry-btn:hover {
-      background: #45a049;
-    }
-    .progress-text {
-      margin-top: 15px;
-      color: #aaa;
-      font-size: 14px;
+      background: #4CAF50; color: white; border: none; padding: 12px 24px; margin-top: 20px;
+      cursor: pointer; border-radius: 5px; font-size: 16px;
     }
   </style>
 </head>
 <body>
   <div id="cesiumContainer"></div>
-  
   <div id="loadingScreen">
     <div class="spinner"></div>
     <h2>جاري تحميل الخريطة...</h2>
-    <p class="progress-text" id="loadingProgress">المرحلة الأولى: تحميل المكتبات الأساسية</p>
+    <p id="loadingProgress">جارٍ تحميل المكتبات...</p>
   </div>
-  
   <div id="errorScreen">
-    <div style="max-width: 500px;">
-      <h2 style="color: #ff6b6b;">⚠️ تعذر تحميل الخريطة</h2>
-      <p id="errorDetails" style="margin: 15px 0;">حدث خطأ غير متوقع أثناء التحميل</p>
-      <button class="retry-btn" onclick="window.location.reload()">إعادة المحاولة</button>
-      <p style="margin-top: 20px; color: #888; font-size: 14px;">
-        إذا استمرت المشكلة، يرجى:<br>
-        1. التحقق من اتصال الإنترنت<br>
-        2. تحديث الصفحة (F5)<br>
-        3. المحاولة لاحقًا
-      </p>
-    </div>
+    <h2>⚠️ تعذر تحميل الخريطة</h2>
+    <p id="errorDetails">حدث خطأ غير متوقع</p>
+    <button class="retry-btn" onclick="location.reload()">🔁 إعادة المحاولة</button>
   </div>
 
   <script>
-    // ===== الإعدادات الرئيسية =====
+    Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYWY5MWNlNi01ZTUyLTQxMjgtOThmYi03MDYxYzRjMGFlNWIiLCJpZCI6MzEzMTE4LCJpYXQiOjE3NTAxOTQ2NjN9.WjNOm9VnV1aLGHV9OnUGCQdLUfegmK_y9iWN5Sz6BF4";
+
     const loadingScreen = document.getElementById('loadingScreen');
     const loadingProgress = document.getElementById('loadingProgress');
     const errorScreen = document.getElementById('errorScreen');
     const errorDetails = document.getElementById('errorDetails');
-    
-    // ===== دالة معالجة الأخطاء =====
-    function showError(message, technicalDetails = '') {
-      console.error('Error:', technicalDetails || message);
-      errorDetails.innerHTML = `${message}<br><small style="color:#aaa">${technicalDetails}</small>`;
-      loadingScreen.style.display = 'none';
-      errorScreen.style.display = 'flex';
-      
-      // إرسال تقرير الخطأ تلقائياً (اختياري)
-      try {
-        if (navigator.onLine) {
-          fetch('https://api.example.com/error-report', {
-            method: 'POST',
-            body: JSON.stringify({
-              error: message,
-              details: technicalDetails,
-              page: 'Paris 3D Map'
-            })
-          });
-        }
-      } catch (e) {}
-    }
 
-    // ===== دالة تهيئة الخريطة =====
     async function initMap() {
       try {
-        // 1. التحقق من اتصال الإنترنت
-        if (!navigator.onLine) {
-          throw new Error("لا يوجد اتصال بالإنترنت");
-        }
-        loadingProgress.textContent = "المرحلة 1: التحقق من الاتصال...";
+        if (!navigator.onLine) throw new Error("لا يوجد اتصال بالإنترنت");
 
-        // 2. التحقق من تحميل مكتبة Cesium
-        if (typeof Cesium === 'undefined') {
-          throw new Error("لم يتم تحميل مكتبة CesiumJS");
-        }
-        loadingProgress.textContent = "المرحلة 2: تحميل المكتبات...";
-
-        // 3. استخدام خريطة بديلة إذا فشل التحميل الرئيسي
-        const terrainProvider = await Cesium.createWorldTerrainAsync({
-          requestWaterMask: false,
-          requestVertexNormals: false
-        }).catch(e => {
-          console.warn("Using fallback terrain");
-          return new Cesium.EllipsoidTerrainProvider();
+        const terrainProvider = await Cesium.createWorldTerrainAsync().catch(e => {
+          throw new Error("فشل تحميل التضاريس - تحقق من التوكن أو الاتصال");
         });
 
-        loadingProgress.textContent = "المرحلة 3: تحميل التضاريس...";
-
-        const imageryProvider = await new Promise((resolve) => {
-          const bing = new Cesium.IonImageryProvider({ assetId: 3845 });
-          bing.readyPromise.then(resolve).catch(() => {
-            console.warn("Using fallback imagery");
-            resolve(new Cesium.TileMapServiceImageryProvider({
-              url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
-            }));
-          });
-        });
-
-        loadingProgress.textContent = "المرحلة 4: تهيئة الخريطة...";
-
-        // 4. إنشاء المشهد
         const viewer = new Cesium.Viewer('cesiumContainer', {
-          terrainProvider: terrainProvider,
-          imageryProvider: imageryProvider,
+          terrainProvider,
           baseLayerPicker: false,
-          skyAtmosphere: false,
-          skyBox: false,
-          sceneMode: Cesium.SceneMode.SCENE3D,
           timeline: false,
           animation: false,
+          sceneMode: Cesium.SceneMode.SCENE3D,
           shouldAnimate: true
         });
 
-        // 5. تتبع تقدم التحميل
-        viewer.scene.globe.tileLoadProgressEvent.addEventListener((remaining) => {
-          loadingProgress.textContent = `المرحلة 5: جارٍ تحميل البيانات (${remaining} عنصر باقي)...`;
-        });
-
-        // 6. الانتظار حتى اكتمال التحميل
-        await new Promise((resolve) => {
-          const checkLoad = setInterval(() => {
-            if (viewer.scene.globe.tilesLoaded) {
-              clearInterval(checkLoad);
-              resolve();
-            }
-          }, 500);
-        });
-
-        // 7. التكبير نحو باريس
-        loadingProgress.textContent = "المرحلة 6: تهيئة المشهد النهائي...";
-        await viewer.camera.flyTo({
+        viewer.camera.flyTo({
           destination: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566, 2000),
-          orientation: {
-            heading: Cesium.Math.toRadians(0),
-            pitch: Cesium.Math.toRadians(-30)
-          },
-          maximumHeight: 5000,
-          easingFunction: Cesium.EasingFunction.LINEAR_NONE
+          orientation: { heading: 0, pitch: Cesium.Math.toRadians(-30), roll: 0 }
         });
 
-        // 8. إضافة علامة باريس
-        viewer.entities.add({
-          name: "Paris",
-          position: Cesium.Cartesian3.fromDegrees(2.3522, 48.8566),
-          point: {
-            pixelSize: 20,
-            color: Cesium.Color.RED.withAlpha(0.8),
-            outlineColor: Cesium.Color.WHITE,
-            outlineWidth: 2
-          },
-          label: {
-            text: "باريس | Paris",
-            font: "16px 'Arial Arabic', sans-serif",
-            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-            outlineWidth: 4,
-            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            fillColor: Cesium.Color.WHITE,
-            outlineColor: Cesium.Color.BLACK,
-            pixelOffset: new Cesium.Cartesian2(0, -30)
-          }
-        });
+        loadingScreen.style.display = "none";
 
-        // 9. إظهار العناصر الجمالية بعد التحميل
-        viewer.skyAtmosphere = true;
-        viewer.skyBox = true;
-        loadingScreen.style.opacity = '0';
-        setTimeout(() => {
-          loadingScreen.style.display = 'none';
-        }, 500);
-
-      } catch (error) {
-        showError(
-          "تعذر تحميل الخريطة ثلاثية الأبعاد", 
-          error.message.includes('Script error') ? 
-          "حدث خطأ في تحميل مكتبة Cesium" : 
-          error.message
-        );
+      } catch (err) {
+        console.error(err);
+        errorDetails.innerHTML = "❌ " + err.message;
+        loadingScreen.style.display = "none";
+        errorScreen.style.display = "flex";
       }
     }
 
-    // ===== بدء التحميل عند اكتمال الصفحة =====
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(initMap, 100); // تأخير بسيط لضمان استقرار الصفحة
-    });
-
-    // ===== إعادة المحاولة عند استعادة الاتصال =====
-    window.addEventListener('online', () => {
-      if (errorScreen.style.display === 'flex') {
-        window.location.reload();
-      }
-    });
-
-    // ===== زر إعادة المحاولة اليدوي =====
-    document.querySelector('.retry-btn').addEventListener('click', () => {
-      errorScreen.style.display = 'none';
-      loadingScreen.style.display = 'flex';
-      initMap();
-    });
+    window.addEventListener("load", initMap);
   </script>
 </body>
 </html>
